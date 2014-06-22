@@ -2,39 +2,22 @@ package main
 
 import (
 	"net"
-	"fmt"
 	"log"
 	"io"
 	"os"
 )
 
-func handleIn(con net.Conn) {
+func handle(reader io.Reader, writer io.Writer) {
 	buf := make([]byte, 128)
 	for {
-		n, err := con.Read(buf)
+		n, err := reader.Read(buf)
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("Read error: %s\n", err)
 			}
 			break
 		}
-		log.Printf("Input buffer: len=%d cap=%d\n", len(buf), cap(buf))
-		fmt.Print(string(buf[0:n]))
-	}
-}
-
-func handleOut(con net.Conn) {
-	buf := make([]byte, 128)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				log.Printf("Read error: %s\n", err)
-			}
-			break
-		}
-		log.Printf("Output buffer: len=%d cap=%d\n", len(buf), cap(buf))
-		con.Write(buf[0:n])
+		writer.Write(buf[0:n])
 	}
 }
 
@@ -51,7 +34,7 @@ func main() {
 			log.Println(err)
 			continue
 		}
-		go handleIn(con)
-		go handleOut(con)
+		go handle(os.Stdin, con)
+		go handle(con, os.Stdout)
 	}
 }
