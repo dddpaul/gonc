@@ -7,17 +7,23 @@ import (
 	"os"
 )
 
-func handle(reader io.Reader, writer io.Writer) {
-	buf := make([]byte, 128)
+func handle(r io.Reader, w io.Writer) {
+	defer func() {
+		if con, ok := w.(net.Conn); ok {
+			con.Close();
+			log.Printf("Connection from %v is closed\n", con.RemoteAddr())
+		}
+	}()
+	buf := make([]byte, 1024)
 	for {
-		n, err := reader.Read(buf)
+		n, err := r.Read(buf)
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("Read error: %s\n", err)
 			}
 			break
 		}
-		writer.Write(buf[0:n])
+		w.Write(buf[0:n])
 	}
 }
 
