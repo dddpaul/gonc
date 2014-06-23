@@ -5,6 +5,7 @@ import (
 	"log"
 	"io"
 	"os"
+	"flag"
 )
 
 func handle(r io.Reader, w io.Writer) <-chan bool {
@@ -33,20 +34,7 @@ func handle(r io.Reader, w io.Writer) <-chan bool {
 	return c
 }
 
-func main() {
-	ln, err := net.Listen("tcp", ":9999")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	con, err := ln.Accept()
-	log.Println("Connect from", con.RemoteAddr())
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
+func transferStreams(con net.Conn) {
 	c1 := handle(os.Stdin, con)
 	c2 := handle(con, os.Stdout)
 	select {
@@ -54,5 +42,38 @@ func main() {
 		log.Println("Local program is terminated")
 	case <-c2:
 		log.Println("Remote connection is closed")
+	}
+}
+
+func main() {
+	var host, port string
+	var listen bool
+	flag.StringVar(&host, "host", "127.0.0.1", "Remote host to connect")
+	flag.BoolVar(&listen, "listen", false, "Listen mode")
+	flag.StringVar(&port, "port", ":9999", "Port to listen on or connect to")
+	flag.Parse()
+
+	if listen {
+		log.Println("Listening on", port)
+		ln, err := net.Listen("tcp", port)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		con, err := ln.Accept()
+		log.Println("Connect from", con.RemoteAddr())
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		transferStreams(con)
+	} else {
+		log.Println("Connecting to", host+port)
+		con, err := net.Dial("tcp", host+port)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		transferStreams(con)
 	}
 }
