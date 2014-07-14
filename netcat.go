@@ -48,32 +48,31 @@ func transferStreams(con net.Conn) {
 func main() {
 	var host, port string
 	var listen bool
-	flag.StringVar(&host, "host", "127.0.0.1", "Remote host to connect")
+	flag.StringVar(&host, "host", "", "Remote host to connect, i.e. 127.0.0.1")
 	flag.BoolVar(&listen, "listen", false, "Listen mode")
-	flag.StringVar(&port, "port", ":9999", "Port to listen on or connect to")
+	flag.StringVar(&port, "port", "", "Port to listen on or connect to (prepended by colon), i.e. :9999")
 	flag.Parse()
 
 	if listen {
-		log.Println("Listening on", port)
 		ln, err := net.Listen("tcp", port)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
+		log.Println("Listening on", port)
 		con, err := ln.Accept()
-		log.Println("Connect from", con.RemoteAddr())
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
+		log.Println("Connect from", con.RemoteAddr())
 		transferStreams(con)
-	} else {
-		log.Println("Connecting to", host+port)
+	} else if host != "" {
 		con, err := net.Dial("tcp", host+port)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
+		log.Println("Connected to", host+port)
 		transferStreams(con)
+	} else {
+		flag.Usage()
 	}
 }
