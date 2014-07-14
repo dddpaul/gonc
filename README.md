@@ -6,7 +6,7 @@ Simple netcat tool written in Go.
 Usage:
 ```
 go run netcat.go [OPTIONS]
-  -host="127.0.0.1": Remote host to connect
+  -host="": Remote host to connect, i.e. 127.0.0.1
   -listen=false: Listen mode
-  -port=":9999": Port to listen on or connect to
+  -port="": Port to listen on or connect to (prepended by colon), i.e. :9999
 ```
