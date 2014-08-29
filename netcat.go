@@ -8,7 +8,7 @@ import (
 	"flag"
 )
 
-func handle(r io.Reader, w io.Writer) <-chan bool {
+func readAndWrite(r io.Reader, w io.Writer) <-chan bool {
 	buf := make([]byte, 1024)
 	c := make(chan bool)
 	go func() {
@@ -35,8 +35,8 @@ func handle(r io.Reader, w io.Writer) <-chan bool {
 }
 
 func transferStreams(con net.Conn) {
-	c1 := handle(os.Stdin, con)
-	c2 := handle(con, os.Stdout)
+	c1 := readAndWrite(os.Stdin, con)
+	c2 := readAndWrite(con, os.Stdout)
 	select {
 	case <-c1:
 		log.Println("Local program is terminated")
@@ -45,16 +45,12 @@ func transferStreams(con net.Conn) {
 	}
 }
 
-func handleUdpIn(r net.PacketConn, w io.Writer) <-chan net.Addr {
+func receivePackets(r net.PacketConn, w io.Writer) <-chan net.Addr {
 	buf := make([]byte, 1024)
 	c := make(chan net.Addr)
 	go func() {
 		var remoteAddr net.Addr = nil
 		defer func() {
-			if con, ok := w.(net.PacketConn); ok {
-				con.Close();
-				log.Printf("Connection is closed\n")
-			}
 			c <- remoteAddr
 		}()
 
@@ -76,15 +72,12 @@ func handleUdpIn(r net.PacketConn, w io.Writer) <-chan net.Addr {
 	return c
 }
 
-func handleUdpOut(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
+func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 	buf := make([]byte, 1024)
 	c := make(chan bool)
 	go func() {
 		defer func() {
-			if con, ok := w.(net.PacketConn); ok {
-				con.Close();
-				log.Printf("Connection is closed\n")
-			}
+			w.Close();
 			c <- true
 		}()
 
@@ -103,9 +96,9 @@ func handleUdpOut(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 }
 
 func transferPackets(con net.PacketConn) {
-	c1 := handleUdpIn(con, os.Stdout)
+	c1 := receivePackets(con, os.Stdout)
 	remoteAddr := <-c1
-	c2 := handleUdpOut(os.Stdin, con, remoteAddr)
+	c2 := sendPackets(os.Stdin, con, remoteAddr)
 	select {
 		case <-c1:
 			log.Println("Remote connection is closed")
