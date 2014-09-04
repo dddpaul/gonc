@@ -8,6 +8,9 @@ import (
 	"flag"
 )
 
+/**
+ * Read from Reader and write to Writer until EOF
+ */
 func readAndWrite(r io.Reader, w io.Writer) <-chan bool {
 	buf := make([]byte, 1024)
 	c := make(chan bool)
@@ -34,6 +37,9 @@ func readAndWrite(r io.Reader, w io.Writer) <-chan bool {
 	return c
 }
 
+/**
+ * Launch two read-write goroutines and waits for signal from them
+ */
 func transferStreams(con net.Conn) {
 	c1 := readAndWrite(os.Stdin, con)
 	c2 := readAndWrite(con, os.Stdout)
@@ -45,6 +51,9 @@ func transferStreams(con net.Conn) {
 	}
 }
 
+/**
+ * Receive UDP datagrams from PacketConn and write it to Writer
+ */
 func receivePackets(r net.PacketConn, w io.Writer) <-chan net.Addr {
 	buf := make([]byte, 1024)
 	c := make(chan net.Addr)
@@ -72,6 +81,9 @@ func receivePackets(r net.PacketConn, w io.Writer) <-chan net.Addr {
 	return c
 }
 
+/**
+ * Read data from Reader and send it as UDP datagram to Addr through PacketConn
+ */
 func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 	buf := make([]byte, 1024)
 	c := make(chan bool)
@@ -95,6 +107,9 @@ func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 	return c
 }
 
+/**
+ * Launch receive goroutine first, wait for address from it, launch send goroutine then.
+ */
 func transferPackets(con net.PacketConn) {
 	c1 := receivePackets(con, os.Stdout)
 	remoteAddr := <-c1
