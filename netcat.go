@@ -1,11 +1,12 @@
 package main
 
 import (
-	"net"
+	"flag"
 	"log"
 	"io"
 	"os"
-	"flag"
+	"net"
+	"strconv"
 )
 
 /**
@@ -54,17 +55,24 @@ func transferStreams(con net.Conn) {
 /**
  * Receive UDP datagrams from PacketConn and write it to Writer
  */
-func receivePackets(r net.PacketConn, w io.Writer) <-chan net.Addr {
+func receivePackets(r net.Conn, w io.Writer) <-chan net.Addr {
 	buf := make([]byte, 1024)
 	c := make(chan net.Addr)
 	go func() {
 		var remoteAddr net.Addr = nil
+		var addr net.Addr
 		defer func() {
 			c <- remoteAddr
 		}()
 
 		for {
-			n, addr, err := r.ReadFrom(buf)
+			var n int
+			var err error
+			if con, ok := r.(*net.UDPConn); ok {
+				n, addr, err = con.ReadFrom(buf)
+			} else {
+				n, err = r.Read(buf)
+			}
 			if err != nil {
 				if err != io.EOF {
 					log.Printf("Read error: %s\n", err)
@@ -84,7 +92,7 @@ func receivePackets(r net.PacketConn, w io.Writer) <-chan net.Addr {
 /**
  * Read data from Reader and send it as UDP datagram to Addr through PacketConn
  */
-func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
+func sendPackets(r io.Reader, w net.Conn, addr net.Addr) <-chan bool {
 	buf := make([]byte, 1024)
 	c := make(chan bool)
 	go func() {
@@ -101,7 +109,11 @@ func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 				}
 				break
 			}
-			w.WriteTo(buf[0:n], addr)
+			if con, ok := w.(*net.UDPConn); ok {
+				con.WriteTo(buf[0:n], addr)
+			} else {
+				w.Write(buf[0:n])
+			}
 		}
 	}()
 	return c
@@ -110,9 +122,10 @@ func sendPackets(r io.Reader, w net.PacketConn, addr net.Addr) <-chan bool {
 /**
  * Launch receive goroutine first, wait for address from it, launch send goroutine then.
  */
-func transferPackets(con net.PacketConn) {
+func transferPackets(con net.Conn) {
 	c1 := receivePackets(con, os.Stdout)
 	remoteAddr := <-c1
+	log.Println(remoteAddr)
 	c2 := sendPackets(os.Stdin, con, remoteAddr)
 	select {
 		case <-c1:
@@ -145,7 +158,9 @@ func main() {
 			log.Println("Connect from", con.RemoteAddr())
 			transferStreams(con)
 		} else if proto == "udp" {
-			con, err := net.ListenPacket(proto, port)
+			p, err := strconv.Atoi(string([]byte(port)[1:]))
+			addr := &net.UDPAddr{ IP: net.IPv4(127, 0, 0, 1), Port: p}
+			con, err := net.ListenUDP(proto, addr)
 			if err != nil {
 				log.Fatalln(err)
 			}
