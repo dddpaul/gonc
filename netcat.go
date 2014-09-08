@@ -12,64 +12,28 @@ import (
 /**
  * Read from Reader and write to Writer until EOF
  */
-func readAndWrite(r io.Reader, w io.Writer) <-chan bool {
+func readAndWrite(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr {
 	buf := make([]byte, 1024)
-	c := make(chan bool)
+	c := make(chan net.Addr)
 	go func() {
 		defer func() {
 			if con, ok := w.(net.Conn); ok {
 				con.Close();
 				log.Printf("Connection from %v is closed\n", con.RemoteAddr())
 			}
-			c <- true
-		}()
-
-		for {
-			n, err := r.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Read error: %s\n", err)
-				}
-				break
-			}
-			w.Write(buf[0:n])
-		}
-	}()
-	return c
-}
-
-/**
- * Launch two read-write goroutines and waits for signal from them
- */
-func transferStreams(con net.Conn) {
-	c1 := readAndWrite(os.Stdin, con)
-	c2 := readAndWrite(con, os.Stdout)
-	select {
-	case <-c1:
-		log.Println("Local program is terminated")
-	case <-c2:
-		log.Println("Remote connection is closed")
-	}
-}
-
-/**
- * Receive UDP datagrams from PacketConn and write it to Writer
- */
-func receivePackets(r net.Conn, w io.Writer) <-chan net.Addr {
-	buf := make([]byte, 1024)
-	c := make(chan net.Addr)
-	go func() {
-		var remoteAddr net.Addr = nil
-		var addr net.Addr
-		defer func() {
 			c <- remoteAddr
 		}()
 
 		for {
 			var n int
 			var err error
+			var addr net.Addr
 			if con, ok := r.(*net.UDPConn); ok {
 				n, addr, err = con.ReadFrom(buf)
+				if remoteAddr == nil {
+					remoteAddr = addr
+					c <- remoteAddr
+				}
 			} else {
 				n, err = r.Read(buf)
 			}
@@ -79,38 +43,8 @@ func receivePackets(r net.Conn, w io.Writer) <-chan net.Addr {
 				}
 				break
 			}
-			if remoteAddr == nil {
-				remoteAddr = addr
-				c <- remoteAddr
-			}
-			w.Write(buf[0:n])
-		}
-	}()
-	return c
-}
-
-/**
- * Read data from Reader and send it as UDP datagram to Addr through PacketConn
- */
-func sendPackets(r io.Reader, w net.Conn, addr net.Addr) <-chan bool {
-	buf := make([]byte, 1024)
-	c := make(chan bool)
-	go func() {
-		defer func() {
-			w.Close();
-			c <- true
-		}()
-
-		for {
-			n, err := r.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Read error: %s\n", err)
-				}
-				break
-			}
 			if con, ok := w.(*net.UDPConn); ok {
-				con.WriteTo(buf[0:n], addr)
+				con.WriteTo(buf[0:n], remoteAddr)
 			} else {
 				w.Write(buf[0:n])
 			}
@@ -120,13 +54,27 @@ func sendPackets(r io.Reader, w net.Conn, addr net.Addr) <-chan bool {
 }
 
 /**
+ * Launch two read-write goroutines and waits for signal from them
+ */
+func transferStreams(con net.Conn) {
+	c1 := readAndWrite(os.Stdin, con, nil)
+	c2 := readAndWrite(con, os.Stdout, nil)
+	select {
+	case <-c1:
+		log.Println("Local program is terminated")
+	case <-c2:
+		log.Println("Remote connection is closed")
+	}
+}
+
+/**
  * Launch receive goroutine first, wait for address from it, launch send goroutine then.
  */
 func transferPackets(con net.Conn) {
-	c1 := receivePackets(con, os.Stdout)
+	c1 := readAndWrite(con, os.Stdout, nil)
 	remoteAddr := <-c1
 	log.Println(remoteAddr)
-	c2 := sendPackets(os.Stdin, con, remoteAddr)
+	c2 := readAndWrite(os.Stdin, con, remoteAddr)
 	select {
 		case <-c1:
 			log.Println("Remote connection is closed")
