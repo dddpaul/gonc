@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/stretchr/testify/assert"
 	"net"
+	"strings"
 	"testing"
 	"time"
-	"strings"
-	"github.com/stretchr/testify/assert"
 )
 
 var Host = "127.0.0.1"
@@ -16,7 +16,7 @@ func TestTCP(t *testing.T) {
 	// Send test data to listener from goroutine and wait for potentials errors at the end of the test
 	go func() {
 		// Wait for main thread starts listener
-		time.Sleep( 200 * time.Millisecond )
+		time.Sleep(200 * time.Millisecond)
 		con, err := net.Dial("tcp", Host+Port)
 		assert.Nil(t, err)
 
@@ -24,7 +24,7 @@ func TestTCP(t *testing.T) {
 		c1 := readAndWrite(strings.NewReader(Input), con)
 
 		// Wait for data will be transferred
-		time.Sleep( 200 * time.Millisecond )
+		time.Sleep(200 * time.Millisecond)
 		select {
 		case <-c1:
 		default:
@@ -49,7 +49,7 @@ func TestUDP(t *testing.T) {
 	// Send test data to listener from goroutine and wait for potentials errors at the end of the test
 	go func() {
 		// Wait for main thread starts listener
-		time.Sleep( 200 * time.Millisecond )
+		time.Sleep(200 * time.Millisecond)
 		con, err := net.Dial("udp", Host+Port)
 		assert.Nil(t, err)
 
@@ -57,7 +57,7 @@ func TestUDP(t *testing.T) {
 		c1 := readAndWrite(strings.NewReader(Input), con)
 
 		// Wait for data will be transferred
-		time.Sleep( 200 * time.Millisecond )
+		time.Sleep(200 * time.Millisecond)
 		select {
 		case <-c1:
 		default:

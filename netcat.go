@@ -2,24 +2,35 @@ package main
 
 import (
 	"flag"
-	"log"
 	"io"
-	"os"
+	"log"
 	"net"
-	"strconv"
+	"os"
 )
 
 /**
- * Read from Reader and write to Writer until EOF
+ * Read from Reader and write to Writer until EOF.
  */
-func readAndWrite(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr {
+func readAndWrite(r io.Reader, w io.Writer) <-chan net.Addr {
+	return readAndWriteImpl(r, w, nil)
+}
+
+/**
+ * Read from Reader and write to Writer until EOF.
+ * remoteAddr is an address to send packets in UDP mode.
+ */
+func readAndWriteImpl(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr {
 	buf := make([]byte, 1024)
 	c := make(chan net.Addr)
 	go func() {
 		defer func() {
 			if con, ok := w.(net.Conn); ok {
-				con.Close();
-				log.Printf("Connection from %v is closed\n", con.RemoteAddr())
+				con.Close()
+				if _, ok := con.(*net.UDPConn); ok {
+					log.Printf("Stop receiving flow from %v\n", remoteAddr)
+				} else {
+					log.Printf("Connection from %v is closed\n", con.RemoteAddr())
+				}
 			}
 			c <- remoteAddr
 		}()
@@ -27,9 +38,12 @@ func readAndWrite(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr
 		for {
 			var n int
 			var err error
-			var addr net.Addr
+
+			// Read
 			if con, ok := r.(*net.UDPConn); ok {
+				var addr net.Addr
 				n, addr, err = con.ReadFrom(buf)
+				// Inform caller function with remote address
 				if remoteAddr == nil {
 					remoteAddr = addr
 					c <- remoteAddr
@@ -43,10 +57,15 @@ func readAndWrite(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr
 				}
 				break
 			}
+
+			// Write
 			if con, ok := w.(*net.UDPConn); ok {
-				con.WriteTo(buf[0:n], remoteAddr)
+				_, err = con.WriteTo(buf[0:n], remoteAddr)
 			} else {
-				w.Write(buf[0:n])
+				_, err = w.Write(buf[0:n])
+			}
+			if err != nil {
+				log.Printf("Write error: %s\n", err)
 			}
 		}
 	}()
@@ -57,13 +76,13 @@ func readAndWrite(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr
  * Launch two read-write goroutines and waits for signal from them
  */
 func transferStreams(con net.Conn) {
-	c1 := readAndWrite(os.Stdin, con, nil)
-	c2 := readAndWrite(con, os.Stdout, nil)
+	c1 := readAndWrite(con, os.Stdout)
+	c2 := readAndWrite(os.Stdin, con)
 	select {
 	case <-c1:
-		log.Println("Local program is terminated")
-	case <-c2:
 		log.Println("Remote connection is closed")
+	case <-c2:
+		log.Println("Local program is terminated")
 	}
 }
 
@@ -71,15 +90,14 @@ func transferStreams(con net.Conn) {
  * Launch receive goroutine first, wait for address from it, launch send goroutine then.
  */
 func transferPackets(con net.Conn) {
-	c1 := readAndWrite(con, os.Stdout, nil)
+	c1 := readAndWrite(con, os.Stdout)
 	remoteAddr := <-c1
-	log.Println(remoteAddr)
-	c2 := readAndWrite(os.Stdin, con, remoteAddr)
+	c2 := readAndWriteImpl(os.Stdin, con, remoteAddr)
 	select {
-		case <-c1:
-			log.Println("Remote connection is closed")
-		case <-c2:
-			log.Println("Local program is terminated")
+	case <-c1:
+		log.Println("Remote connection is closed")
+	case <-c2:
+		log.Println("Local program is terminated")
 	}
 }
 
@@ -106,8 +124,10 @@ func main() {
 			log.Println("Connect from", con.RemoteAddr())
 			transferStreams(con)
 		} else if proto == "udp" {
-			p, err := strconv.Atoi(string([]byte(port)[1:]))
-			addr := &net.UDPAddr{ IP: net.IPv4(127, 0, 0, 1), Port: p}
+			addr, err := net.ResolveUDPAddr(proto, host+port)
+			if err != nil {
+				log.Fatalln(err)
+			}
 			con, err := net.ListenUDP(proto, addr)
 			if err != nil {
 				log.Fatalln(err)
