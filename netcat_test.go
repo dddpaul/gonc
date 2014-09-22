@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
 )
 
 var Host = "127.0.0.1"
@@ -54,7 +55,9 @@ func TestUDP(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Transfer data
-		c1 := readAndWrite(strings.NewReader(Input), con)
+		addr, err := net.ResolveUDPAddr("udp", Host+Port)
+		fmt.Println(con.RemoteAddr())
+		c1 := readAndWriteImpl(strings.NewReader(Input), con, addr)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
