@@ -17,7 +17,7 @@ func readAndWrite(r io.Reader, w io.Writer) <-chan net.Addr {
 
 /**
  * Read from Reader and write to Writer until EOF.
- * remoteAddr is an address to send packets in UDP mode.
+ * remoteAddr is an address to whom packets must be sent in UDP listen mode.
  */
 func readAndWriteImpl(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.Addr {
 	buf := make([]byte, 1024)
@@ -43,8 +43,9 @@ func readAndWriteImpl(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.
 			if con, ok := r.(*net.UDPConn); ok {
 				var addr net.Addr
 				n, addr, err = con.ReadFrom(buf)
-				// Inform caller function with remote address
-				if remoteAddr == nil {
+				// Inform caller function with remote address once
+				// (for UDP in listen mode only)
+				if con.RemoteAddr() == nil && remoteAddr == nil {
 					remoteAddr = addr
 					c <- remoteAddr
 				}
@@ -60,7 +61,8 @@ func readAndWriteImpl(r io.Reader, w io.Writer, remoteAddr net.Addr) <-chan net.
 
 			// Write
 			if con, ok := w.(*net.UDPConn); ok && con.RemoteAddr() == nil {
-				log.Println(remoteAddr)
+				// Special case for UDP in listen mode otherwise
+				// net.ErrWriteToConnected will be thrown
 				_, err = con.WriteTo(buf[0:n], remoteAddr)
 			} else {
 				_, err = w.Write(buf[0:n])
@@ -98,10 +100,6 @@ func transferPackets(con net.Conn) {
 		remoteAddr = <-c1
 	}
 	c2 := readAndWriteImpl(os.Stdin, con, remoteAddr)
-	// If connection has got remoteAddr then just discard remotedAddr from receiver goroutine
-	if con.RemoteAddr() != nil {
-		<-c1
-	}
 	select {
 	case <-c1:
 		log.Println("Remote connection is closed")
