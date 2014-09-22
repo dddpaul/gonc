@@ -57,7 +57,7 @@ func TestUDP(t *testing.T) {
 		// Transfer data
 		addr, err := net.ResolveUDPAddr("udp", Host+Port)
 		fmt.Println(con.RemoteAddr())
-		c1 := readAndWriteImpl(strings.NewReader(Input), con, addr)
+		c1 := readAndWriteToAddr(strings.NewReader(Input), con, addr)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
