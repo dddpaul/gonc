@@ -1,12 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strings"
 	"testing"
 	"time"
-	"fmt"
 )
 
 var Host = "127.0.0.1"
