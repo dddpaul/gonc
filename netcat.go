@@ -8,6 +8,11 @@ import (
 	"os"
 )
 
+// Ready to handle full-size UDP datagram or TCP segment in one step
+const (
+	BUFFER_LIMIT = 2<<16 - 1
+)
+
 /**
  * Launch two read-write goroutines and waits for signal from them
  */
@@ -54,7 +59,7 @@ func readAndWrite(r io.Reader, w io.Writer) <-chan net.Addr {
  * ra is an address to whom packets must be sent in UDP listen mode.
  */
 func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan net.Addr {
-	buf := make([]byte, 1024)
+	buf := make([]byte, BUFFER_LIMIT)
 	c := make(chan net.Addr)
 	go func() {
 		defer func() {
