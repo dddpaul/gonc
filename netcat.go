@@ -13,6 +13,12 @@ const (
 	BUFFER_LIMIT = 2<<16 - 1
 )
 
+type Progress struct {
+	ra net.Addr
+	rBytes uint64
+	wBytes uint64
+}
+
 /**
  * Launch two read-write goroutines and waits for signal from them
  */
@@ -20,10 +26,10 @@ func TransferStreams(con net.Conn) {
 	c1 := readAndWrite(con, os.Stdout)
 	c2 := readAndWrite(os.Stdin, con)
 	select {
-	case <-c1:
-		log.Println("Remote connection is closed")
-	case <-c2:
-		log.Println("Local program is terminated")
+	case progress := <-c1:
+		log.Printf("Remote connection is closed: %+v\n", progress)
+	case progress := <-c2:
+		log.Printf("Local program is terminated: %+v\n", progress)
 	}
 }
 
@@ -35,22 +41,23 @@ func TransferPackets(con net.Conn) {
 	// If connection hasn't got remote address then wait for it from receiver goroutine
 	ra := con.RemoteAddr()
 	if ra == nil {
-		ra = <-c1
+		progress := <-c1
+		ra = progress.ra
 		log.Println("Connect from", ra)
 	}
 	c2 := readAndWriteToAddr(os.Stdin, con, ra)
 	select {
-	case <-c1:
-		log.Println("Remote connection is closed")
-	case <-c2:
-		log.Println("Local program is terminated")
+	case progress := <-c1:
+		log.Printf("Remote connection is closed: %+v\n", progress)
+	case progress := <-c2:
+		log.Printf("Local program is terminated: %+v\n", progress)
 	}
 }
 
 /**
  * Read from Reader and write to Writer until EOF.
  */
-func readAndWrite(r io.Reader, w io.Writer) <-chan net.Addr {
+func readAndWrite(r io.Reader, w io.Writer) <-chan Progress {
 	return readAndWriteToAddr(r, w, nil)
 }
 
@@ -58,9 +65,10 @@ func readAndWrite(r io.Reader, w io.Writer) <-chan net.Addr {
  * Read from Reader and write to Writer until EOF.
  * ra is an address to whom packets must be sent in UDP listen mode.
  */
-func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan net.Addr {
+func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan Progress {
 	buf := make([]byte, BUFFER_LIMIT)
-	c := make(chan net.Addr)
+	c := make(chan Progress)
+	rBytes, wBytes := uint64(0), uint64(0)
 	go func() {
 		defer func() {
 			if con, ok := w.(net.Conn); ok {
@@ -71,7 +79,7 @@ func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan net.Addr {
 					log.Printf("Connection from %v is closed\n", con.RemoteAddr())
 				}
 			}
-			c <- ra
+			c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
 		}()
 
 		for {
@@ -86,7 +94,7 @@ func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan net.Addr {
 				// (for UDP in listen mode only)
 				if con.RemoteAddr() == nil && ra == nil {
 					ra = addr
-					c <- ra
+					c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
 				}
 			} else {
 				n, err = r.Read(buf)
@@ -97,18 +105,22 @@ func readAndWriteToAddr(r io.Reader, w io.Writer, ra net.Addr) <-chan net.Addr {
 				}
 				break
 			}
+			rBytes += uint64(n)
 
 			// Write
 			if con, ok := w.(*net.UDPConn); ok && con.RemoteAddr() == nil {
 				// Special case for UDP in listen mode otherwise
 				// net.ErrWriteToConnected will be thrown
-				_, err = con.WriteTo(buf[0:n], ra)
+				n, err = con.WriteTo(buf[0:n], ra)
 			} else {
-				_, err = w.Write(buf[0:n])
+				n, err = w.Write(buf[0:n])
 			}
 			if err != nil {
 				log.Fatalf("Write error: %s\n", err)
 			}
+			wBytes += uint64(n)
+
+//			c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
 		}
 	}()
 	return c

@@ -27,7 +27,8 @@ func TestTCP(t *testing.T) {
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
 		select {
-		case <-c1:
+		case progress := <-c1:
+			t.Logf("Remote connection is closed: %+v\n", progress)
 		default:
 			t.Fatal("handle() must write to result channel")
 		}
@@ -62,7 +63,8 @@ func TestUDP(t *testing.T) {
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
 		select {
-		case <-c1:
+		case progress := <-c1:
+			t.Logf("Remote connection is closed: %+v\n", progress)
 		default:
 			t.Fatal("handle() must write to result channel")
 		}
