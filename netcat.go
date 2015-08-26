@@ -120,7 +120,7 @@ func main() {
 	flag.StringVar(&host, "host", "", "Remote host to connect, i.e. 127.0.0.1")
 	flag.StringVar(&proto, "proto", "tcp", "TCP/UDP mode")
 	flag.BoolVar(&listen, "listen", false, "Listen mode")
-	flag.StringVar(&port, "port", "", "Port to listen on or connect to (prepended by colon), i.e. :9999")
+	flag.StringVar(&port, "port", ":9999", "Port to listen on or connect to (prepended by colon), i.e. :9999")
 	flag.Parse()
 
 	if proto == "tcp" {
@@ -129,7 +129,7 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			log.Println("Listening on", port)
+			log.Println("Listening on", proto+port)
 			con, err := ln.Accept()
 			if err != nil {
 				log.Fatalln(err)
@@ -156,7 +156,7 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			log.Println("Listening on", port)
+			log.Println("Listening on", proto+port)
 			TransferPackets(con)
 		} else if host != "" {
 			addr, err := net.ResolveUDPAddr(proto, host+port)
