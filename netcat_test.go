@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var Host = "127.0.0.1"
@@ -22,7 +23,7 @@ func TestTCP(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Transfer data
-		c1 := readAndWrite(strings.NewReader(Input), con)
+		c1 := copyStreams(strings.NewReader(Input), con)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
@@ -57,8 +58,9 @@ func TestUDP(t *testing.T) {
 
 		// Transfer data
 		addr, err := net.ResolveUDPAddr("udp", Host+Port)
+		assert.Nil(t, err)
 		fmt.Println(con.RemoteAddr())
-		c1 := readAndWriteToAddr(strings.NewReader(Input), con, addr)
+		c1 := copyPackets(strings.NewReader(Input), con, addr)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
