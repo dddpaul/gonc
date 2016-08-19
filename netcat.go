@@ -10,22 +10,20 @@ import (
 
 // Ready to handle full-size UDP datagram or TCP segment in one step
 const (
-	BUFFER_LIMIT = 2<<16 - 1
+	BUFFERLIMIT = 2<<16 - 1
 )
 
+// Progress indicates transfer status
 type Progress struct {
 	ra     net.Addr
 	rBytes uint64
 	wBytes uint64
 }
 
-/**
- * Launch two read-write goroutines and waits for signal from them
- */
-func TransferStreams(con net.Conn) {
+// TransferStreams launches two read-write goroutines and waits for signal from them
+func TransferStreams(con io.ReadWriteCloser) {
 	c1 := copyStreams(con, os.Stdout)
 	c2 := copyStreams(os.Stdin, con)
-
 	select {
 	case progress := <-c1:
 		log.Printf("Remote connection is closed: %+v\n", progress)
@@ -34,9 +32,7 @@ func TransferStreams(con net.Conn) {
 	}
 }
 
-/**
- * Launch receive goroutine first, wait for address from it (if needed), launch send goroutine then.
- */
+// TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
 func TransferPackets(con net.Conn) {
 	c1 := copyPackets(con, os.Stdout, nil)
 	// If connection hasn't got remote address then wait for it from receiver goroutine
@@ -55,9 +51,7 @@ func TransferPackets(con net.Conn) {
 	}
 }
 
-/**
- * Read from Reader and write to Writer until EOF.
- */
+// Read from Reader and write to Writer until EOF.
 func copyStreams(r io.Reader, w io.WriteCloser) <-chan Progress {
 	c := make(chan Progress)
 	go func() {
@@ -81,12 +75,10 @@ func copyStreams(r io.Reader, w io.WriteCloser) <-chan Progress {
 	return c
 }
 
-/**
- * Read from Reader and write to Writer until EOF.
- * ra is an address to whom packets must be sent in UDP listen mode.
- */
+// Read from Reader and write to Writer until EOF.
+// ra is an address to whom packets must be sent in UDP listen mode.
 func copyPackets(r io.Reader, w io.WriteCloser, ra net.Addr) <-chan Progress {
-	buf := make([]byte, BUFFER_LIMIT)
+	buf := make([]byte, BUFFERLIMIT)
 	c := make(chan Progress)
 	rBytes, wBytes := uint64(0), uint64(0)
 	go func() {
