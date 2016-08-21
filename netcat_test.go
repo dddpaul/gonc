@@ -4,7 +4,6 @@ import (
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -14,21 +13,12 @@ var Port = ":9991"
 var Input = "Input from other side, пока, £, 语汉"
 
 func TestTransferStreams(t *testing.T) {
-	oldStdin := os.Stdin
+	w, oldStdin := mockStdin(t)
 
-	// Bytes written to w1 are read from os.Stdin
-	r, w, e := os.Pipe()
-	assert.Nil(t, e)
-	os.Stdin = r
-
-	// Send data to server from goroutine and wait for potentials errors at the end of the test
+	// Send data to server
 	go func() {
-		// Wait for main thread starts server
-		time.Sleep(200 * time.Millisecond)
 		con, err := net.Dial("tcp", Host+Port)
 		assert.Nil(t, err)
-
-		// Client sends data
 		_, err = w.Write([]byte(Input))
 		assert.Nil(t, err)
 		TransferStreams(con)
@@ -51,21 +41,12 @@ func TestTransferStreams(t *testing.T) {
 }
 
 func TestTransferPackets(t *testing.T) {
-	oldStdin := os.Stdin
+	w, oldStdin := mockStdin(t)
 
-	// Bytes written to w1 are read from os.Stdin
-	r, w, e := os.Pipe()
-	assert.Nil(t, e)
-	os.Stdin = r
-
-	// Send test data to server from goroutine and wait for potentials errors at the end of the test
+	// Send data to server
 	go func() {
-		// Wait for main thread starts server
-		time.Sleep(200 * time.Millisecond)
 		con, err := net.Dial("udp", Host+Port)
 		assert.Nil(t, err)
-
-		// Client sends data
 		_, err = w.Write([]byte(Input))
 		assert.Nil(t, err)
 		TransferStreams(con)
@@ -81,4 +62,13 @@ func TestTransferPackets(t *testing.T) {
 	assert.Equal(t, Input, string(buf[0:n]))
 
 	os.Stdin = oldStdin
+}
+
+// Bytes written to w are read from os.Stdin
+func mockStdin(t *testing.T) (w *os.File, oldStdin *os.File) {
+	oldStdin = os.Stdin
+	r, w, err := os.Pipe()
+	assert.Nil(t, err)
+	os.Stdin = r
+	return
 }
