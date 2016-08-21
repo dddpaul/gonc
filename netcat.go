@@ -52,15 +52,13 @@ func TransferPackets(con net.Conn) {
 }
 
 // Read from Reader and write to Writer until EOF.
-func copyStreams(r io.Reader, w io.WriteCloser) <-chan Progress {
+func copyStreams(r io.ReadCloser, w io.WriteCloser) <-chan Progress {
 	c := make(chan Progress)
 	go func() {
 		var n int64
 		var err error
 		defer func() {
-			if rc, ok := r.(io.Closer); ok {
-				rc.Close()
-			}
+			r.Close()
 			w.Close()
 			if con, ok := w.(net.Conn); ok {
 				log.Printf("Connection from %v is closed\n", con.RemoteAddr())
@@ -77,15 +75,13 @@ func copyStreams(r io.Reader, w io.WriteCloser) <-chan Progress {
 
 // Read from Reader and write to Writer until EOF.
 // ra is an address to whom packets must be sent in UDP listen mode.
-func copyPackets(r io.Reader, w io.WriteCloser, ra net.Addr) <-chan Progress {
+func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress {
 	buf := make([]byte, BUFFERLIMIT)
 	c := make(chan Progress)
 	rBytes, wBytes := uint64(0), uint64(0)
 	go func() {
 		defer func() {
-			if rc, ok := r.(io.Closer); ok {
-				rc.Close()
-			}
+			r.Close()
 			w.Close()
 			if _, ok := w.(*net.UDPConn); ok {
 				log.Printf("Stop receiving flow from %v\n", ra)

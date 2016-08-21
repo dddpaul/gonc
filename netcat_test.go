@@ -14,6 +14,19 @@ var Host = "127.0.0.1"
 var Port = ":9991"
 var Input = "Input from other side, пока, £, 语汉"
 
+// ReadCloser is used to wrap strings.Reader for implementing io.ReadCloser interface
+type ReadCloser struct {
+	r *strings.Reader
+}
+
+func (rc ReadCloser) Read(p []byte) (n int, err error) {
+	return rc.r.Read(p)
+}
+
+func (rc ReadCloser) Close() error {
+	return nil
+}
+
 func TestTCP(t *testing.T) {
 	// Send test data to listener from goroutine and wait for potentials errors at the end of the test
 	go func() {
@@ -23,7 +36,7 @@ func TestTCP(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Transfer data
-		c1 := copyStreams(strings.NewReader(Input), con)
+		c1 := copyStreams(ReadCloser{r: strings.NewReader(Input)}, con)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
@@ -60,7 +73,7 @@ func TestUDP(t *testing.T) {
 		addr, err := net.ResolveUDPAddr("udp", Host+Port)
 		assert.Nil(t, err)
 		fmt.Println(con.RemoteAddr())
-		c1 := copyPackets(strings.NewReader(Input), con, addr)
+		c1 := copyPackets(ReadCloser{r: strings.NewReader(Input)}, con, addr)
 
 		// Wait for data will be transferred
 		time.Sleep(200 * time.Millisecond)
