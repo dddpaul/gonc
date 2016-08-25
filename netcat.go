@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync/atomic"
+	// _ "net/http/pprof" // HTTP profiling
 	"os"
 )
 
@@ -22,13 +24,43 @@ type Progress struct {
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
 func TransferStreams(con io.ReadWriteCloser) {
-	c1 := copyStreams(con, os.Stdout)
-	c2 := copyStreams(os.Stdin, con)
-	select {
-	case progress := <-c1:
-		log.Printf("Remote connection is closed: %+v\n", progress)
-	case progress := <-c2:
-		log.Printf("Local program is terminated: %+v\n", progress)
+	c := make(chan Progress)
+	var i uint64
+
+	// Read from Reader and write to Writer until EOF
+	copy := func(r io.ReadCloser, w io.WriteCloser) {
+		defer func() {
+			r.Close()
+			w.Close()
+			var toClose bool
+			for atomic.CompareAndSwapUint64(&i, 1, 2) {
+				toClose = true
+			}
+			if toClose {
+				close(c)
+				toClose = false
+			}
+		}()
+		n, err := io.Copy(w, r)
+		if err != nil {
+			log.Printf("Read/write error: %s\n", err)
+		}
+		var addr net.Addr
+		if con, ok := r.(net.Conn); ok {
+			addr = con.RemoteAddr()
+		}
+		if con, ok := w.(net.Conn); ok {
+			addr = con.RemoteAddr()
+		}
+		c <- Progress{rBytes: uint64(n), wBytes: 0, ra: addr}
+	}
+
+	go copy(con, os.Stdout)
+	go copy(os.Stdin, con)
+
+	for p := range c {
+		log.Printf("One of the copy goroutines has been finished: %+v\n", p)
+		atomic.AddUint64(&i, 1)
 	}
 }
 
@@ -49,28 +81,6 @@ func TransferPackets(con net.Conn) {
 	case progress := <-c2:
 		log.Printf("Local program is terminated: %+v\n", progress)
 	}
-}
-
-// Read from Reader and write to Writer until EOF.
-func copyStreams(r io.ReadCloser, w io.WriteCloser) <-chan Progress {
-	c := make(chan Progress)
-	go func() {
-		var n int64
-		var err error
-		defer func() {
-			r.Close()
-			w.Close()
-			if con, ok := w.(net.Conn); ok {
-				log.Printf("Connection from %v is closed\n", con.RemoteAddr())
-			}
-			c <- Progress{rBytes: uint64(n), wBytes: uint64(n), ra: nil}
-		}()
-		n, err = io.Copy(w, r)
-		if err != nil {
-			log.Printf("Read/write error: %s\n", err)
-		}
-	}()
-	return c
 }
 
 // Read from Reader and write to Writer until EOF.
@@ -132,6 +142,7 @@ func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress
 }
 
 func main() {
+	// go http.ListenAndServe(":6060", nil)
 	var host, port, proto string
 	var listen bool
 	flag.StringVar(&host, "host", "", "Remote host to connect, i.e. 127.0.0.1")
