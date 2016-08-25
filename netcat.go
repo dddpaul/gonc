@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync/atomic"
 	// _ "net/http/pprof" // HTTP profiling
 	"os"
 )
@@ -25,20 +24,15 @@ type Progress struct {
 // TransferStreams launches two read-write goroutines and waits for signal from them
 func TransferStreams(con io.ReadWriteCloser) {
 	c := make(chan Progress)
-	var i uint64
+	done := make(chan bool)
 
 	// Read from Reader and write to Writer until EOF
 	copy := func(r io.ReadCloser, w io.WriteCloser) {
 		defer func() {
 			r.Close()
 			w.Close()
-			var toClose bool
-			for atomic.CompareAndSwapUint64(&i, 1, 2) {
-				toClose = true
-			}
-			if toClose {
+			if <-done {
 				close(c)
-				toClose = false
 			}
 		}()
 		n, err := io.Copy(w, r)
@@ -58,9 +52,11 @@ func TransferStreams(con io.ReadWriteCloser) {
 	go copy(con, os.Stdout)
 	go copy(os.Stdin, con)
 
+	d := false
 	for p := range c {
-		log.Printf("One of the copy goroutines has been finished: %+v\n", p)
-		atomic.AddUint64(&i, 1)
+		log.Printf("One of goroutines has been finished: %+v\n", p)
+		done <- d
+		d = !d
 	}
 }
 
