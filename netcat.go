@@ -160,53 +160,72 @@ func main() {
 	flag.StringVar(&port, "port", ":9999", "Port to listen on or connect to (prepended by colon), i.e. :9999")
 	flag.Parse()
 
-	if proto == "tcp" {
+	startTCPServer := func() {
+		ln, err := net.Listen(proto, port)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("Listening on", proto+port)
+		con, err := ln.Accept()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("Connect from", con.RemoteAddr())
+		TransferStreams(con)
+	}
+
+	startTCPClient := func() {
+		con, err := net.Dial(proto, host+port)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("Connected to", host+port)
+		TransferStreams(con)
+	}
+
+	startUDPServer := func() {
+		addr, err := net.ResolveUDPAddr(proto, port)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		con, err := net.ListenUDP(proto, addr)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("Listening on", proto+port)
+		TransferPackets(con)
+	}
+
+	startUDPClient := func() {
+		addr, err := net.ResolveUDPAddr(proto, host+port)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		con, err := net.DialUDP(proto, nil, addr)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		TransferPackets(con)
+	}
+
+	switch proto {
+	case "tcp":
 		if listen {
-			ln, err := net.Listen(proto, port)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("Listening on", proto+port)
-			con, err := ln.Accept()
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("Connect from", con.RemoteAddr())
-			TransferStreams(con)
+			startTCPServer()
 		} else if host != "" {
-			con, err := net.Dial(proto, host+port)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("Connected to", host+port)
-			TransferStreams(con)
+			startTCPClient()
 		} else {
 			flag.Usage()
 		}
-	} else if proto == "udp" {
+	case "udp":
 		if listen {
-			addr, err := net.ResolveUDPAddr(proto, port)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			con, err := net.ListenUDP(proto, addr)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("Listening on", proto+port)
-			TransferPackets(con)
+			startUDPServer()
 		} else if host != "" {
-			addr, err := net.ResolveUDPAddr(proto, host+port)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			con, err := net.DialUDP(proto, nil, addr)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			TransferPackets(con)
+			startUDPClient()
 		} else {
 			flag.Usage()
 		}
+	default:
+		flag.Usage()
 	}
 }
