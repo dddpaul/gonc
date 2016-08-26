@@ -18,9 +18,8 @@ const (
 
 // Progress indicates transfer status
 type Progress struct {
-	ra     net.Addr
-	rBytes uint64
-	wBytes uint64
+	remoteAddr net.Addr
+	bytes      uint64
 }
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
@@ -48,7 +47,7 @@ func TransferStreams(con io.ReadWriteCloser) {
 		if con, ok := w.(net.Conn); ok {
 			addr = con.RemoteAddr()
 		}
-		c <- Progress{rBytes: uint64(n), wBytes: 0, ra: addr}
+		c <- Progress{bytes: uint64(n), remoteAddr: addr}
 	}
 
 	go copy(con, os.Stdout)
@@ -70,7 +69,6 @@ func TransferPackets(con net.Conn) {
 	// Read from Reader and write to Writer until EOF.
 	// ra is an address to whom packets must be sent in UDP listen mode.
 	copy := func(r io.ReadCloser, w io.WriteCloser, ra net.Addr) {
-		bytes := uint64(0)
 		defer func() {
 			r.Close()
 			w.Close()
@@ -83,6 +81,7 @@ func TransferPackets(con net.Conn) {
 		}()
 
 		buf := make([]byte, BufferLimit)
+		bytes := uint64(0)
 		var n int
 		var err error
 		var addr net.Addr
@@ -94,7 +93,7 @@ func TransferPackets(con net.Conn) {
 				// Send remote address to caller function (for UDP in listen mode only)
 				if con.RemoteAddr() == nil && ra == nil {
 					ra = addr
-					c <- Progress{rBytes: bytes, wBytes: 0, ra: ra}
+					c <- Progress{remoteAddr: ra}
 				}
 			} else {
 				n, err = r.Read(buf)
@@ -122,7 +121,7 @@ func TransferPackets(con net.Conn) {
 			}
 			bytes += uint64(n)
 		}
-		c <- Progress{rBytes: bytes, wBytes: 0, ra: ra}
+		c <- Progress{bytes: bytes, remoteAddr: ra}
 	}
 
 	go copy(con, os.Stdout, nil)
@@ -130,7 +129,7 @@ func TransferPackets(con net.Conn) {
 	// If connection hasn't got remote address then wait for it from receiver goroutine
 	if ra == nil {
 		p := <-c
-		ra = p.ra
+		ra = p.remoteAddr
 		log.Println("Connect from", ra)
 	}
 	go copy(os.Stdin, con, ra)
