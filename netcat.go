@@ -7,6 +7,7 @@ import (
 	"net"
 	// _ "net/http/pprof" // HTTP profiling
 	"os"
+	"strconv"
 )
 
 const (
@@ -20,6 +21,13 @@ const (
 type Progress struct {
 	remoteAddr net.Addr
 	bytes      uint64
+}
+
+func (p *Progress) String() string {
+	return "{" +
+		"remoteAddr: " + p.remoteAddr.String() +
+		", bytes: " + strconv.Itoa(int(p.bytes)) +
+		"}"
 }
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
@@ -55,7 +63,7 @@ func TransferStreams(con io.ReadWriteCloser) {
 
 	d := false
 	for p := range c {
-		log.Printf("One of goroutines has been finished: %+v\n", p)
+		log.Printf("One of goroutines has been finished: %s\n", p.String())
 		done <- d
 		d = !d
 	}
@@ -130,13 +138,13 @@ func TransferPackets(con net.Conn) {
 	if ra == nil {
 		p := <-c
 		ra = p.remoteAddr
-		log.Println("Connect from", ra)
+		log.Printf("Connect from %v\n", ra)
 	}
 	go copy(os.Stdin, con, ra)
 
 	d := false
 	for p := range c {
-		log.Printf("One of goroutines has been finished: %+v\n", p)
+		log.Printf("One of goroutines has been finished: %s\n", p.String())
 		done <- d
 		d = !d
 	}
