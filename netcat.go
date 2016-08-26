@@ -62,30 +62,12 @@ func TransferStreams(con io.ReadWriteCloser) {
 
 // TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
 func TransferPackets(con net.Conn) {
-	c1 := copyPackets(con, os.Stdout, nil)
-	// If connection hasn't got remote address then wait for it from receiver goroutine
-	ra := con.RemoteAddr()
-	if ra == nil {
-		progress := <-c1
-		ra = progress.ra
-		log.Println("Connect from", ra)
-	}
-	c2 := copyPackets(os.Stdin, con, ra)
-	select {
-	case progress := <-c1:
-		log.Printf("Remote connection is closed: %+v\n", progress)
-	case progress := <-c2:
-		log.Printf("Local program is terminated: %+v\n", progress)
-	}
-}
-
-// Read from Reader and write to Writer until EOF.
-// ra is an address to whom packets must be sent in UDP listen mode.
-func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress {
-	buf := make([]byte, BUFFERLIMIT)
 	c := make(chan Progress)
-	rBytes, wBytes := uint64(0), uint64(0)
-	go func() {
+
+	// Read from Reader and write to Writer until EOF.
+	// ra is an address to whom packets must be sent in UDP listen mode.
+	copy := func(r io.ReadCloser, w io.WriteCloser, ra net.Addr) {
+		rBytes, wBytes := uint64(0), uint64(0)
 		defer func() {
 			r.Close()
 			w.Close()
@@ -95,6 +77,7 @@ func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress
 			c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
 		}()
 
+		buf := make([]byte, BUFFERLIMIT)
 		var n int
 		var err error
 		var addr net.Addr
@@ -103,8 +86,7 @@ func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress
 			// Read
 			if con, ok := r.(*net.UDPConn); ok {
 				n, addr, err = con.ReadFrom(buf)
-				// Inform caller function with remote address once
-				// (for UDP in listen mode only)
+				// Send remote address to caller function (for UDP in listen mode only)
 				if con.RemoteAddr() == nil && ra == nil {
 					ra = addr
 					c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
@@ -122,8 +104,7 @@ func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress
 
 			// Write
 			if con, ok := w.(*net.UDPConn); ok && con.RemoteAddr() == nil {
-				// Special case for UDP in listen mode otherwise
-				// net.ErrWriteToConnected will be thrown
+				// Special case for UDP in listen mode otherwise net.ErrWriteToConnected will be thrown
 				n, err = con.WriteTo(buf[0:n], ra)
 			} else {
 				n, err = w.Write(buf[0:n])
@@ -133,8 +114,19 @@ func copyPackets(r io.ReadCloser, w io.WriteCloser, ra net.Addr) <-chan Progress
 			}
 			wBytes += uint64(n)
 		}
-	}()
-	return c
+	}
+
+	go copy(con, os.Stdout, nil)
+	ra := con.RemoteAddr()
+	// If connection hasn't got remote address then wait for it from receiver goroutine
+	if ra == nil {
+		p := <-c
+		ra = p.ra
+		log.Println("Connect from", ra)
+	}
+	go copy(os.Stdin, con, ra)
+	p := <-c
+	log.Printf("One of goroutines has been finished: %+v\n", p)
 }
 
 func main() {
