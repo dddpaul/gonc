@@ -9,9 +9,11 @@ import (
 	"os"
 )
 
-// Ready to handle full-size UDP datagram or TCP segment in one step
 const (
-	BUFFERLIMIT = 2<<16 - 1
+	// BufferLimit specifies buffer size that is sufficient to handle full-size UDP datagram or TCP segment in one step
+	BufferLimit = 2<<16 - 1
+	// UDPDisconnectSequence is used to disconnect UDP sessions
+	UDPDisconnectSequence = "~."
 )
 
 // Progress indicates transfer status
@@ -77,7 +79,7 @@ func TransferPackets(con net.Conn) {
 			c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
 		}()
 
-		buf := make([]byte, BUFFERLIMIT)
+		buf := make([]byte, BufferLimit)
 		var n int
 		var err error
 		var addr net.Addr
@@ -98,6 +100,9 @@ func TransferPackets(con net.Conn) {
 				if err != io.EOF {
 					log.Printf("Read error: %s\n", err)
 				}
+				break
+			}
+			if string(buf[0:n-1]) == UDPDisconnectSequence {
 				break
 			}
 			rBytes += uint64(n)
