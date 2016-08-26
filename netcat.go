@@ -65,18 +65,21 @@ func TransferStreams(con io.ReadWriteCloser) {
 // TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
 func TransferPackets(con net.Conn) {
 	c := make(chan Progress)
+	done := make(chan bool)
 
 	// Read from Reader and write to Writer until EOF.
 	// ra is an address to whom packets must be sent in UDP listen mode.
 	copy := func(r io.ReadCloser, w io.WriteCloser, ra net.Addr) {
-		rBytes, wBytes := uint64(0), uint64(0)
+		bytes := uint64(0)
 		defer func() {
 			r.Close()
 			w.Close()
 			if _, ok := w.(*net.UDPConn); ok {
 				log.Printf("Stop receiving flow from %v\n", ra)
 			}
-			c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
+			if <-done {
+				close(c)
+			}
 		}()
 
 		buf := make([]byte, BufferLimit)
@@ -91,7 +94,7 @@ func TransferPackets(con net.Conn) {
 				// Send remote address to caller function (for UDP in listen mode only)
 				if con.RemoteAddr() == nil && ra == nil {
 					ra = addr
-					c <- Progress{rBytes: rBytes, wBytes: wBytes, ra: ra}
+					c <- Progress{rBytes: bytes, wBytes: 0, ra: ra}
 				}
 			} else {
 				n, err = r.Read(buf)
@@ -105,7 +108,6 @@ func TransferPackets(con net.Conn) {
 			if string(buf[0:n-1]) == UDPDisconnectSequence {
 				break
 			}
-			rBytes += uint64(n)
 
 			// Write
 			if con, ok := w.(*net.UDPConn); ok && con.RemoteAddr() == nil {
@@ -115,10 +117,12 @@ func TransferPackets(con net.Conn) {
 				n, err = w.Write(buf[0:n])
 			}
 			if err != nil {
-				log.Fatalf("Write error: %s\n", err)
+				log.Printf("Write error: %s\n", err)
+				break
 			}
-			wBytes += uint64(n)
+			bytes += uint64(n)
 		}
+		c <- Progress{rBytes: bytes, wBytes: 0, ra: ra}
 	}
 
 	go copy(con, os.Stdout, nil)
@@ -130,8 +134,13 @@ func TransferPackets(con net.Conn) {
 		log.Println("Connect from", ra)
 	}
 	go copy(os.Stdin, con, ra)
-	p := <-c
-	log.Printf("One of goroutines has been finished: %+v\n", p)
+
+	d := false
+	for p := range c {
+		log.Printf("One of goroutines has been finished: %+v\n", p)
+		done <- d
+		d = !d
+	}
 }
 
 func main() {
