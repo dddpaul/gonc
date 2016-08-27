@@ -33,7 +33,7 @@ func TransferStreams(con net.Conn) {
 		}()
 		n, err := io.Copy(w, r)
 		if err != nil {
-			log.Printf("[%s]: %s\n", con.RemoteAddr(), err)
+			log.Printf("[%s]: ERROR: %s\n", con.RemoteAddr(), err)
 		}
 		c <- Progress{bytes: uint64(n)}
 	}
@@ -80,7 +80,7 @@ func TransferPackets(con net.Conn) {
 			}
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("[%s]: %s\n", ra, err)
+					log.Printf("[%s]: ERROR: %s\n", ra, err)
 				}
 				break
 			}
@@ -96,7 +96,7 @@ func TransferPackets(con net.Conn) {
 				n, err = w.Write(buf[0:n])
 			}
 			if err != nil {
-				log.Printf("[%s]: %s\n", ra, err)
+				log.Printf("[%s]: ERROR: %s\n", ra, err)
 				break
 			}
 			bytes += uint64(n)
