@@ -5,9 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
-	// _ "net/http/pprof" // HTTP profiling
 	"os"
-	"strconv"
 )
 
 const (
@@ -21,13 +19,6 @@ const (
 type Progress struct {
 	remoteAddr net.Addr
 	bytes      uint64
-}
-
-func (p *Progress) String() string {
-	return "{" +
-		"remoteAddr: " + p.remoteAddr.String() +
-		", bytes: " + strconv.Itoa(int(p.bytes)) +
-		"}"
 }
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
@@ -59,20 +50,13 @@ func TransferStreams(con net.Conn) {
 // TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
 func TransferPackets(con net.Conn) {
 	c := make(chan Progress)
-	done := make(chan bool)
 
 	// Read from Reader and write to Writer until EOF.
-	// ra is an address to whom packets must be sent in UDP listen mode.
+	// ra is an address to whom packets must be sent in listen mode.
 	copy := func(r io.ReadCloser, w io.WriteCloser, ra net.Addr) {
 		defer func() {
 			r.Close()
 			w.Close()
-			if _, ok := w.(*net.UDPConn); ok {
-				log.Printf("Stop receiving flow from %v\n", ra)
-			}
-			if <-done {
-				close(c)
-			}
 		}()
 
 		buf := make([]byte, BufferLimit)
@@ -85,7 +69,8 @@ func TransferPackets(con net.Conn) {
 			// Read
 			if con, ok := r.(*net.UDPConn); ok {
 				n, addr, err = con.ReadFrom(buf)
-				// Send remote address to caller function (for UDP in listen mode only)
+				// In listen mode remote address is unknown until read from connection.
+				// So we must inform caller function with received remote address.
 				if con.RemoteAddr() == nil && ra == nil {
 					ra = addr
 					c <- Progress{remoteAddr: ra}
@@ -95,7 +80,7 @@ func TransferPackets(con net.Conn) {
 			}
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("Read error: %s\n", err)
+					log.Printf("[%s]: %s\n", ra, err)
 				}
 				break
 			}
@@ -105,40 +90,37 @@ func TransferPackets(con net.Conn) {
 
 			// Write
 			if con, ok := w.(*net.UDPConn); ok && con.RemoteAddr() == nil {
-				// Special case for UDP in listen mode otherwise net.ErrWriteToConnected will be thrown
+				// Connection remote address must be nil otherwise "WriteTo with pre-connected connection" will be thrown
 				n, err = con.WriteTo(buf[0:n], ra)
 			} else {
 				n, err = w.Write(buf[0:n])
 			}
 			if err != nil {
-				log.Printf("Write error: %s\n", err)
+				log.Printf("[%s]: %s\n", ra, err)
 				break
 			}
 			bytes += uint64(n)
 		}
-		c <- Progress{bytes: bytes, remoteAddr: ra}
+		c <- Progress{bytes: bytes}
 	}
 
-	go copy(con, os.Stdout, nil)
 	ra := con.RemoteAddr()
+	go copy(con, os.Stdout, ra)
 	// If connection hasn't got remote address then wait for it from receiver goroutine
 	if ra == nil {
 		p := <-c
 		ra = p.remoteAddr
-		log.Printf("Connect from %v\n", ra)
+		log.Printf("[%s]: Datagram has been received\n", ra)
 	}
 	go copy(os.Stdin, con, ra)
 
-	d := false
-	for p := range c {
-		log.Printf("One of goroutines has been finished: %s\n", p.String())
-		done <- d
-		d = !d
-	}
+	p := <-c
+	log.Printf("[%s]: Connection has been closed, %d bytes has been received\n", ra, p.bytes)
+	p = <-c
+	log.Printf("[%s]: Local peer has been stopped, %d bytes has been sent\n", ra, p.bytes)
 }
 
 func main() {
-	// go http.ListenAndServe(":6060", nil)
 	var host, port, proto string
 	var listen bool
 	flag.StringVar(&host, "host", "", "Remote host to connect, i.e. 127.0.0.1")
@@ -180,6 +162,7 @@ func main() {
 			log.Fatalln(err)
 		}
 		log.Println("Listening on", proto+port)
+		// This connection doesn't know remote address yet
 		TransferPackets(con)
 	}
 
@@ -192,6 +175,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		log.Println("Sending datagrams to", host+port)
 		TransferPackets(con)
 	}
 
