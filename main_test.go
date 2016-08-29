@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dddpaul/gonc/tcp"
+	"github.com/dddpaul/gonc/udp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +23,7 @@ func TestTransferStreams(t *testing.T) {
 		assert.Nil(t, err)
 		_, err = w.Write([]byte(Input))
 		assert.Nil(t, err)
-		TransferStreams(con)
+		tcp.TransferStreams(con)
 	}()
 
 	// Server receives data
@@ -49,7 +51,7 @@ func TestTransferPackets(t *testing.T) {
 		assert.Nil(t, err)
 		_, err = w.Write([]byte(Input))
 		assert.Nil(t, err)
-		TransferStreams(con)
+		udp.TransferPackets(con)
 	}()
 
 	con, err := net.ListenPacket("udp", Port)
