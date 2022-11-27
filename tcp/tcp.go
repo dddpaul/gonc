@@ -13,7 +13,7 @@ type Progress struct {
 }
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
-func TransferStreams(con net.Conn) {
+func TransferStreams(con net.Conn, in io.ReadCloser, out io.WriteCloser) {
 	c := make(chan Progress)
 
 	// Read from Reader and write to Writer until EOF
@@ -29,8 +29,8 @@ func TransferStreams(con net.Conn) {
 		c <- Progress{bytes: uint64(n)}
 	}
 
-	go copy(con, os.Stdout)
-	go copy(os.Stdin, con)
+	go copy(con, out)
+	go copy(in, con)
 
 	p := <-c
 	log.Printf("[%s]: Connection has been closed by remote peer, %d bytes has been received\n", con.RemoteAddr(), p.bytes)
@@ -50,7 +50,7 @@ func StartServer(proto string, port string) {
 		log.Fatalln(err)
 	}
 	log.Printf("[%s]: Connection has been opened\n", con.RemoteAddr())
-	TransferStreams(con)
+	TransferStreams(con, os.Stdin, os.Stdout)
 }
 
 // StartClient starts TCP connector
@@ -60,5 +60,5 @@ func StartClient(proto string, host string, port string) {
 		log.Fatalln(err)
 	}
 	log.Println("Connected to", host+port)
-	TransferStreams(con)
+	TransferStreams(con, os.Stdin, os.Stdout)
 }

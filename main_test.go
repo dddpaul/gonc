@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -10,20 +13,49 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type MockReader struct {
+	r io.Reader
+}
+
+func (mr MockReader) Read(p []byte) (n int, err error) {
+	return mr.Read(p)
+}
+
+func (mr MockReader) Close() error {
+	return nil
+}
+
+type MockWriter struct {
+	w io.Writer
+}
+
+func (mw MockWriter) Write(p []byte) (n int, err error) {
+	return mw.Write(p)
+}
+
+func (mw MockWriter) Close() error {
+	return nil
+}
+
 var Host = "127.0.0.1"
 var Port = ":9991"
 var Input = "Input from other side, пока, £, 语汉"
 
 func TestTransferStreams(t *testing.T) {
-	w, oldStdin := mockStdin(t)
+	in := MockReader{
+		bytes.NewReader([]byte(Input)),
+	}
+	out := MockWriter{
+		ioutil.Discard,
+	}
 
 	// Send data to server
 	go func() {
 		con, err := net.Dial("tcp", Host+Port)
 		assert.Nil(t, err)
-		_, err = w.Write([]byte(Input))
+		_, err = out.Write([]byte(Input))
 		assert.Nil(t, err)
-		tcp.TransferStreams(con)
+		tcp.TransferStreams(con, in, out)
 	}()
 
 	// Server receives data
@@ -38,8 +70,6 @@ func TestTransferStreams(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, Input, string(buf[0:n]))
-
-	os.Stdin = oldStdin
 }
 
 func TestTransferPackets(t *testing.T) {
