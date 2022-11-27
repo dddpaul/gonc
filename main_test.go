@@ -13,18 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockReader struct {
-	r io.Reader
-}
-
-func (mr MockReader) Read(p []byte) (n int, err error) {
-	return mr.Read(p)
-}
-
-func (mr MockReader) Close() error {
-	return nil
-}
-
 type MockWriter struct {
 	w io.Writer
 }
@@ -42,12 +30,8 @@ var Port = ":9991"
 var Input = "Input from other side, пока, £, 语汉"
 
 func TestTransferStreams(t *testing.T) {
-	in := MockReader{
-		bytes.NewReader([]byte(Input)),
-	}
-	out := MockWriter{
-		ioutil.Discard,
-	}
+	in := ioutil.NopCloser(bytes.NewReader([]byte(Input)))
+	out := MockWriter{ioutil.Discard}
 
 	// Send data to server
 	go func() {
