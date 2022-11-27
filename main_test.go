@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-	"os"
 	"testing"
 
 	"github.com/dddpaul/gonc/tcp"
@@ -55,15 +54,14 @@ func TestTransferStreams(t *testing.T) {
 }
 
 func TestTransferPackets(t *testing.T) {
-	w, oldStdin := mockStdin(t)
+	in := ioutil.NopCloser(bytes.NewReader([]byte(Input)))
+	out := MockWriter{ioutil.Discard}
 
 	// Send data to server
 	go func() {
 		con, err := net.Dial("udp", Host+Port)
 		assert.Nil(t, err)
-		_, err = w.Write([]byte(Input))
-		assert.Nil(t, err)
-		udp.TransferPackets(con)
+		udp.TransferPackets(con, in, out)
 	}()
 
 	con, err := net.ListenPacket("udp", Port)
@@ -74,15 +72,4 @@ func TestTransferPackets(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, Input, string(buf[0:n]))
-
-	os.Stdin = oldStdin
-}
-
-// Bytes written to w are read from os.Stdin
-func mockStdin(t *testing.T) (w *os.File, oldStdin *os.File) {
-	oldStdin = os.Stdin
-	r, w, err := os.Pipe()
-	assert.Nil(t, err)
-	os.Stdin = r
-	return
 }

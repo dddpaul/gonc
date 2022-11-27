@@ -21,7 +21,7 @@ type Progress struct {
 }
 
 // TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
-func TransferPackets(con net.Conn) {
+func TransferPackets(con net.Conn, in io.ReadCloser, out io.WriteCloser) {
 	c := make(chan Progress)
 
 	// Read from Reader and write to Writer until EOF.
@@ -78,14 +78,14 @@ func TransferPackets(con net.Conn) {
 	}
 
 	ra := con.RemoteAddr()
-	go copy(con, os.Stdout, ra)
+	go copy(con, out, ra)
 	// If connection hasn't got remote address then wait for it from receiver goroutine
 	if ra == nil {
 		p := <-c
 		ra = p.remoteAddr
 		log.Printf("[%s]: Datagram has been received\n", ra)
 	}
-	go copy(os.Stdin, con, ra)
+	go copy(in, con, ra)
 
 	p := <-c
 	log.Printf("[%s]: Connection has been closed, %d bytes has been received\n", ra, p.bytes)
@@ -105,7 +105,7 @@ func StartServer(proto string, port string) {
 	}
 	log.Println("Listening on", proto+port)
 	// This connection doesn't know remote address yet
-	TransferPackets(con)
+	TransferPackets(con, os.Stdin, os.Stdout)
 }
 
 // StartClient starts UDP connector
@@ -119,5 +119,5 @@ func StartClient(proto string, host string, port string) {
 		log.Fatalln(err)
 	}
 	log.Println("Sending datagrams to", host+port)
-	TransferPackets(con)
+	TransferPackets(con, os.Stdin, os.Stdout)
 }
