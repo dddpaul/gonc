@@ -37,8 +37,6 @@ func TestTransferStreams(t *testing.T) {
 	go func() {
 		con, err := net.Dial("tcp", Host+Port)
 		assert.Nil(t, err)
-		_, err = out.Write([]byte(Input))
-		assert.Nil(t, err)
 		tcp.TransferStreams(con, in, out)
 	}()
 
