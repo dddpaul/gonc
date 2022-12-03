@@ -9,33 +9,44 @@ import (
 
 // Progress indicates transfer status
 type Progress struct {
-	bytes uint64
+	direction string
+	bytes     uint64
 }
 
 // TransferStreams launches two read-write goroutines and waits for signal from them
-func TransferStreams(con net.Conn, in io.ReadCloser, out io.WriteCloser) {
+func TransferStreams(con net.Conn, in io.Reader, out io.Writer) {
+	defer func() {
+		con.Close()
+	}()
 	c := make(chan Progress)
 
 	// Read from Reader and write to Writer until EOF
-	copy := func(r io.ReadCloser, w io.WriteCloser) {
-		defer func() {
-			r.Close()
-			w.Close()
-		}()
+	copy := func(r io.Reader, w io.Writer) {
 		n, err := io.Copy(w, r)
 		if err != nil {
 			log.Printf("[%s]: ERROR: %s\n", con.RemoteAddr(), err)
 		}
-		c <- Progress{bytes: uint64(n)}
+
+		var direction string
+		if _, ok := w.(net.Conn); ok {
+			direction = "sent to connection"
+		} else {
+			direction = "received from connection"
+		}
+
+		c <- Progress{
+			direction: direction,
+			bytes:     uint64(n),
+		}
 	}
 
-	go copy(con, out)
 	go copy(in, con)
+	go copy(con, out)
 
 	p := <-c
-	log.Printf("[%s]: Connection has been closed by remote peer, %d bytes has been received\n", con.RemoteAddr(), p.bytes)
+	log.Printf("[%s]: Connection has been closed by remote peer, %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 	p = <-c
-	log.Printf("[%s]: Local peer has been stopped, %d bytes has been sent\n", con.RemoteAddr(), p.bytes)
+	log.Printf("[%s]: Local peer has been stopped, %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 }
 
 // StartServer starts TCP listener

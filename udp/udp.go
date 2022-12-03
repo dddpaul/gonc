@@ -21,16 +21,16 @@ type Progress struct {
 }
 
 // TransferPackets launches receive goroutine first, wait for address from it (if needed), launches send goroutine then
-func TransferPackets(con net.Conn, in io.ReadCloser, out io.WriteCloser) {
+func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
+	defer func() {
+		con.Close()
+	}()
+
 	c := make(chan Progress)
 
 	// Read from Reader and write to Writer until EOF.
 	// ra is an address to whom packets must be sent in listen mode.
-	copy := func(r io.ReadCloser, w io.WriteCloser, ra net.Addr) {
-		defer func() {
-			r.Close()
-			w.Close()
-		}()
+	copy := func(r io.Reader, w io.Writer, ra net.Addr) {
 
 		buf := make([]byte, BufferLimit)
 		bytes := uint64(0)
