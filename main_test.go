@@ -58,19 +58,36 @@ func TestTransferPackets(t *testing.T) {
 	in := ioutil.NopCloser(bytes.NewReader([]byte(Input)))
 	out := new(bytes.Buffer)
 
-	// Send data to server
+	ready := make(chan bool, 1)
+	done := make(chan bool, 1)
+
+	// Send data from "my" side
 	go func() {
+		<-ready
 		con, err := net.Dial("udp", Host+Port)
 		assert.Nil(t, err)
 		udp.TransferPackets(con, in, out)
+		done <- true
 	}()
 
+	// Start server on the "other" side
 	con, err := net.ListenPacket("udp", Port)
 	assert.Nil(t, err)
+	ready <- true
 
+	// Read data on the "other" side
 	buf := make([]byte, 1024)
-	n, _, err := con.ReadFrom(buf)
+	n, a, err := con.ReadFrom(buf)
 	assert.Nil(t, err)
-
 	assert.Equal(t, Input, string(buf[0:n]))
+
+	// Send data from the "other" side
+	n, err = con.WriteTo([]byte(InputFromOtherSide), a)
+	assert.Nil(t, err)
+	_, err = con.WriteTo([]byte("~."), a)
+	assert.Nil(t, err)
+	err = con.Close()
+	assert.Nil(t, err)
+	// <-done
+	assert.Equal(t, InputFromOtherSide, string(out.Bytes()[0:n]))
 }
