@@ -20,33 +20,35 @@ func TransferStreams(con net.Conn, in io.Reader, out io.Writer) {
 	}()
 	c := make(chan Progress)
 
-	// Read from Reader and write to Writer until EOF
-	copy := func(r io.Reader, w io.Writer) {
-		n, err := io.Copy(w, r)
+	// Read from input and send to connection
+	go func() {
+		n, err := io.Copy(con, in)
+		if err != nil {
+			log.Printf("[%s]: ERROR: %s\n", con.RemoteAddr(), err)
+		}
+		c <- Progress{
+			direction: "sent to connection",
+			bytes:     uint64(n),
+		}
+	}()
+
+	// Read from connection and send to output
+	go func() {
+		n, err := io.Copy(out, con)
 		if err != nil {
 			log.Printf("[%s]: ERROR: %s\n", con.RemoteAddr(), err)
 		}
 
-		var direction string
-		if _, ok := w.(net.Conn); ok {
-			direction = "sent to connection"
-		} else {
-			direction = "received from connection"
-		}
-
 		c <- Progress{
-			direction: direction,
+			direction: "received from connection",
 			bytes:     uint64(n),
 		}
-	}
-
-	go copy(in, con)
-	go copy(con, out)
+	}()
 
 	p := <-c
-	log.Printf("[%s]: Connection has been closed by remote peer, %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
+	log.Printf("[%s]: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 	p = <-c
-	log.Printf("[%s]: Local peer has been stopped, %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
+	log.Printf("[%s]: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 }
 
 // StartServer starts TCP listener

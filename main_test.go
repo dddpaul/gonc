@@ -32,7 +32,7 @@ func TestTransferStreams(t *testing.T) {
 		done <- true
 	}()
 
-	// Server receives data
+	// Start server on the "other" side
 	ln, err := net.Listen("tcp", Port)
 	assert.Nil(t, err)
 	ready <- true
@@ -45,7 +45,7 @@ func TestTransferStreams(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, Input, string(buf[0:n]))
 
-	// Write data on the "other" side
+	// Send data from the "other" side
 	n, err = con.Write([]byte(InputFromOtherSide))
 	assert.Nil(t, err)
 	err = con.Close()
