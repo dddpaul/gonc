@@ -46,9 +46,9 @@ func TransferStreams(con net.Conn, in io.Reader, out io.Writer) {
 	}()
 
 	p := <-c
-	log.Printf("TCP [%s]: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
+	log.Printf("TCP %s: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 	p = <-c
-	log.Printf("TCP [%s]: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
+	log.Printf("TCP %s: %d bytes has been %s\n", con.RemoteAddr(), p.bytes, p.direction)
 }
 
 // StartServer starts TCP listener

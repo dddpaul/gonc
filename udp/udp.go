@@ -32,7 +32,6 @@ func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
 	// Read from Reader and write to Writer until EOF.
 	// ra is an address to whom packets must be sent in listen mode.
 	copy := func(r io.Reader, w io.Writer, ra net.Addr) {
-
 		buf := make([]byte, BufferLimit)
 		bytes := uint64(0)
 		var n int
@@ -100,9 +99,9 @@ func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
 	go copy(in, con, ra)
 
 	p := <-c
-	log.Printf("UDP [%s]: %d bytes has been %s\n", ra, p.bytes, p.direction)
+	log.Printf("UDP %s: %d bytes has been %s\n", ra, p.bytes, p.direction)
 	p = <-c
-	log.Printf("UDP [%s]: %d bytes has been %s\n", ra, p.bytes, p.direction)
+	log.Printf("UDP %s: %d bytes has been %s\n", ra, p.bytes, p.direction)
 }
 
 // StartServer starts UDP listener
