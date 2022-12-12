@@ -1,0 +1,36 @@
+# Based on:
+# https://www.prestonlamb.com/blog/creating-a-docker-image-with-github-actions
+# https://www.learncloudnative.com/blog/2020-02-20-github-action-build-push-docker-images
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        id: release
+        uses: rymndhng/release-on-push-action@v0.27.0
+        with:
+          bump_version_scheme: minor
+
+      - name: Check Output Parameters
+        run: |
+          echo "Got tag name ${{ steps.release.outputs.tag_name }}"
+          echo "Got release version ${{ steps.release.outputs.version }}"
+
+      - name: Log into registry
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ${{ secrets.DOCKER_REGISTRY_URL }} -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+      - name: Build and push image
+        run: make push version=${{ steps.release.outputs.version }}
