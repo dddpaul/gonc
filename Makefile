@@ -5,6 +5,7 @@ IMAGE=dddpaul/gonc
 all: build
 
 build-alpine:
+	CGO_ENABLED=0 GOOS=linux go test
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ./bin/gonc ./main.go
 
 build:
