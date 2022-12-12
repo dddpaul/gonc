@@ -17,6 +17,7 @@ const (
 // Progress indicates transfer status
 type Progress struct {
 	remoteAddr net.Addr
+	direction  string
 	bytes      uint64
 }
 
@@ -37,6 +38,7 @@ func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
 		var n int
 		var err error
 		var addr net.Addr
+		var direction string
 
 		for {
 			// Read
@@ -74,11 +76,21 @@ func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
 			}
 			bytes += uint64(n)
 		}
-		c <- Progress{bytes: bytes}
+
+		if _, ok := r.(*net.UDPConn); ok {
+			direction = "received from connection"
+		} else {
+			direction = "sent to connection"
+		}
+		c <- Progress{
+			direction: direction,
+			bytes:     bytes,
+		}
 	}
 
 	ra := con.RemoteAddr()
 	go copy(con, out, ra)
+
 	// If connection hasn't got remote address then wait for it from receiver goroutine
 	if ra == nil {
 		p := <-c
@@ -88,9 +100,9 @@ func TransferPackets(con net.Conn, in io.Reader, out io.Writer) {
 	go copy(in, con, ra)
 
 	p := <-c
-	log.Printf("[%s]: Connection has been closed, %d bytes has been received\n", ra, p.bytes)
+	log.Printf("UDP [%s]: %d bytes has been %s\n", ra, p.bytes, p.direction)
 	p = <-c
-	log.Printf("[%s]: Local peer has been stopped, %d bytes has been sent\n", ra, p.bytes)
+	log.Printf("UDP [%s]: %d bytes has been %s\n", ra, p.bytes, p.direction)
 }
 
 // StartServer starts UDP listener

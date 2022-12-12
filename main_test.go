@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"net"
 	"testing"
 
@@ -55,7 +54,7 @@ func TestTransferStreams(t *testing.T) {
 }
 
 func TestTransferPackets(t *testing.T) {
-	in := ioutil.NopCloser(bytes.NewReader([]byte(Input)))
+	in := bytes.NewReader([]byte(Input))
 	out := new(bytes.Buffer)
 
 	ready := make(chan bool, 1)
@@ -84,10 +83,10 @@ func TestTransferPackets(t *testing.T) {
 	// Send data from the "other" side
 	n, err = con.WriteTo([]byte(InputFromOtherSide), a)
 	assert.Nil(t, err)
-	_, err = con.WriteTo([]byte("~."), a)
+	_, err = con.WriteTo([]byte("~.\n"), a)
 	assert.Nil(t, err)
 	err = con.Close()
 	assert.Nil(t, err)
-	// <-done
+	<-done
 	assert.Equal(t, InputFromOtherSide, string(out.Bytes()[0:n]))
 }
