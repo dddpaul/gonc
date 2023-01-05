@@ -1,26 +1,29 @@
-gonc
+wg-nc
 =========
+Simple Netcat tool written in Go. Fork of [gonc](https://github.com/dddpaul/gonc) with added userland wireguard support.
 
-Simple Netcat tool written in Go.
 
 Install:
 
 ```
-go get -u github.com/dddpaul/gonc
+go get -u github.com/dnachev/wg-nc
 ```
 
-Usage:
-
 ```
-gonc [OPTIONS]
-  -host="": Remote host to connect, i.e. 127.0.0.1
-  -listen=false: Listen mode
-  -port="": Port to listen on or connect to (prepended by colon), i.e. :9999
-  -proto="tcp": TCP/UDP mode
+Usage of wg-nc:
+  -host string
+        Remote host to connect, i.e. 127.0.0.1
+  -listen
+        Listen mode
+  -port string
+        Port to listen on or connect to (prepended by colon), i.e. :9999 (default ":9999")
+  -proto string
+        TCP/UDP mode (default "tcp")
+  -wg string
+        Wireguard config file
 ```
 
 Comments:
 
 * Send `~.` to disconnect in UDP mode.
-
-You can grab some binaries from [Bintray](http://dl.bintray.com/dddpaul/generic/gonc/). This is a simplest way to get Netcat for Windows :)
+* Wireguard support was inspired by the [Our User-Mode WireGuard Year](https://fly.io/blog/our-user-mode-wireguard-year/) blog post.
