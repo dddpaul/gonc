@@ -1,10 +1,10 @@
-FROM golang:1.18.7 as builder
-WORKDIR /go/src/github.com/dddpaul/gonc
+FROM golang:1.19-alpine as builder
+WORKDIR /go/src/github.com/dnachev/wg-nc
+RUN apk add make
 ADD . ./
 RUN make build-alpine
 
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /go/src/github.com/dddpaul/gonc/bin/gonc .
+FROM scratch
+COPY --from=builder /go/src/github.com/dnachev/wg-nc/bin/wg-nc /wg-nc
 
-ENTRYPOINT ["./gonc"]
+ENTRYPOINT ["./wg-nc"]

@@ -1,12 +1,12 @@
 .PHONY: all build release
 
-IMAGE=dddpaul/gonc
+IMAGE=ghcr.io/dnachev/wg-nc
 
 all: build
 
 build-alpine:
 	CGO_ENABLED=0 GOOS=linux go test
-	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ./bin/gonc ./main.go
+	CGO_ENABLED=0 GOOS=linux go build -a -o ./bin/wg-nc ./main.go
 
 build:
 	@docker build --tag=${IMAGE} .
