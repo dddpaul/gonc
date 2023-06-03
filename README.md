@@ -19,6 +19,8 @@ Usage of wg-nc:
         Port to listen on or connect to (prepended by colon), i.e. :9999 (default ":9999")
   -proto string
         TCP/UDP mode (default "tcp")
+  -proxy-port string
+        Port to listen for connections to proxy, i.e :9999.
   -wg string
         Wireguard config file
 ```
@@ -26,4 +28,6 @@ Usage of wg-nc:
 Comments:
 
 * Send `~.` to disconnect in UDP mode.
+* Proxy mode (when `-proxy-port` is provided) ignores process stdout and stdin and instead setups a persistent server, which forwards
+  requests to the provided host + port.
 * Wireguard support was inspired by the [Our User-Mode WireGuard Year](https://fly.io/blog/our-user-mode-wireguard-year/) blog post.

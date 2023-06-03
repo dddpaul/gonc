@@ -78,3 +78,40 @@ func StartClient(dial DialFn, proto string, host string, port string) {
 	log.Println("Connected to", host+port)
 	TransferStreams(con, os.Stdin, os.Stdout)
 }
+
+// StartProxy starts TCP listener which opens a client for every connection
+// it ignores the stdin/stdout contrary to how `nc` works
+func StartProxy(
+	dial DialFn,
+	dialProto string,
+	dialHost string,
+	dialPort string,
+	listen ListenFn,
+	listenProto string,
+	listenPort string,
+) {
+	// TODO Use the provided listen function instead of net.Listen
+	ln, err := net.Listen(listenProto, listenPort)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println("Listening on", listenProto+listenPort)
+	for {
+		// TODO Stop listening on SIGTERM and SIGHUP
+		con, err := ln.Accept()
+		if err != nil {
+			log.Println("Failed accepting connection", err)
+		}
+		go connectProxy(con, dial, dialProto, dialHost, dialPort)
+	}
+}
+
+func connectProxy(in net.Conn, dial DialFn, proto, host, port string) {
+	out, err := dial(proto, host+port)
+	if err != nil {
+		log.Println("Failed connecting to ", host+port, err)
+		return
+	}
+	TransferStreams(out, in, in)
+}
